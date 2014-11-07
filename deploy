@@ -2,8 +2,8 @@
 
 set -e
 
-source ./.env.production
-env=$(<.env.production)
+source ./.env
+env=$(<.env)
 
 while test $# != 0; do
   case "$1" in
