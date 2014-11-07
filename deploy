@@ -47,10 +47,6 @@ git fetch origin && git reset --hard $REMOTE_REF
 bin/bundle install --deployment --quiet --without development test
 $(echo $env) bin/rake assets:precompile
 $(echo $env) bin/rake db:migrate
-'"
-
-ssh -A -i $SSH_KEY_PATH $DEPLOYER@$SERVER bash -c "'
-cd $PROJECT_PATH
 if [ -e tmp/puma.pid ] ; then
   pid=\$(<$PROJECT_PATH/tmp/puma.pid)
   kill -s USR1 \$pid
