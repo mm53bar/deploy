@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+set -e
+
+source ./.env.production
+env=$(<.env.production)
+
+while test $# != 0; do
+  case "$1" in
+    --setup|setup)
+      SETUP=true
+      ;;
+    --stop|stop)
+      STOP=true
+      ;;
+  esac
+  shift
+done
+
+if [ -z "$REF" ]; then
+  REMOTE_REF=origin/master
+else
+  REMOTE_REF=origin/$REF
+fi
+
+if [ $SETUP ]; then
+  ssh -A -i $SSH_KEY_PATH $DEPLOYER@$SERVER bash -c "'
+  rm -rf $PROJECT_PATH/*
+  ssh-keyscan $GIT_HOST | tee \$HOME/.ssh/known_hosts
+  git clone --no-checkout $GIT_REPO_URL $PROJECT_PATH
+  '"
+fi
+
+if [ -n "$STOP" ]; then
+  ssh -A -i $SSH_KEY_PATH $DEPLOYER@$SERVER bash -c "'
+  cd $PROJECT_PATH
+  pid=\$(<$PROJECT_PATH/tmp/puma.pid)
+  kill -s TERM \$pid
+  rm $PROJECT_PATH/tmp/puma.pid
+  '"
+  exit
+fi
+
+ssh -A -i $SSH_KEY_PATH $DEPLOYER@$SERVER bash -c "'
+cd $PROJECT_PATH
+git fetch origin && git reset --hard $REMOTE_REF
+bin/bundle install --deployment --quiet --without development test
+$(echo $env) bin/rake assets:precompile
+$(echo $env) bin/rake db:migrate
+'"
+
+ssh -A -i $SSH_KEY_PATH $DEPLOYER@$SERVER bash -c "'
+cd $PROJECT_PATH
+if [ -e tmp/puma.pid ] ; then
+  pid=\$(<$PROJECT_PATH/tmp/puma.pid)
+  kill -s USR1 \$pid
+else
+  $(echo $env) bin/puma --config config/puma.rb
+fi
+'"
